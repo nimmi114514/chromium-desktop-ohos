@@ -1,115 +1,143 @@
-# Chromium 2in1 HAP
+# Chromium Desktop for OHOS
 
-本地工作区的移植目标为 **Google Chromium 158.0.8116.0 / OHOS arm64 / API 26**，
-源码固定在 Google main 提交 `566635fe3ce2912169a6ca76a00a7ee1d8e400e9`。
-使用本机 DevEco Studio 26 内置的 API 26 SDK，原生移植工程位于
-[`../chromium158-ohos/`](../chromium158-ohos/README.md)。
-完整浏览器与 HAP 是否已经生成，以该工程的
-[STATUS.md](../chromium158-ohos/STATUS.md) 和实际构建产物为准。
+面向 **HarmonyOS / OHOS 平板与 2in1 设备**的 Chromium 桌面浏览器 HAP 应用工程，当前接入 **Chromium 158.0.8116.0 / arm64 / API 26**。
 
-DevEco Studio 打开本目录；Chromium C++ 改动在相邻的 `chromium158-ohos`
-工作区进行，其中 `src` 指向 WSL 中的源码。两者通过运行时准备脚本连接：
+**本仓库在 [Nyaacho0v0/chromium-2in1-hap](https://github.com/Nyaacho0v0/chromium-2in1-hap) 的 Chromium 132 HAP 工程基础上继续开发。** 原作者及上游社区提供了应用壳、系统接口桥接和打包基础；本项目在这些工作的基础上接入158内核并进行兼容性适配。感谢原作者与相关贡献者。
 
-| 文件位置 | 用途 |
+原132基线提交：[`cc241f6d431c52144afe58f3d4232ca7c9658c43`](https://github.com/Nyaacho0v0/chromium-2in1-hap/commit/cc241f6d431c52144afe58f3d4232ca7c9658c43)。本仓库保留该基线的 Git 历史及沿用文件中的版权和许可声明。
+
+## 配套内核仓库
+
+| 仓库 | 内容 |
 | --- | --- |
-| `../chromium158-ohos/src/out/OHOS/` | Chromium 原生编译输出 |
-| `chromium/libs/arm64-v8a/` | 打包使用的 `libchrome_main_web.so` 与 `libadapter.so` |
-| `web_engine/src/main/resources/resfile/` | 打包使用的 ICU、PAK 和 V8 快照 |
-| `chromium/build/default/outputs/default/chromium-default-signed.hap` | 安装到设备的签名包 |
+| [chromium-ohos](https://github.com/nimmi114514/chromium-ohos) | Chromium 158 内核及依赖适配补丁、构建工具、验证记录 |
+| [chromium-desktop-ohos](https://github.com/nimmi114514/chromium-desktop-ohos)（本仓库） | ArkTS 应用壳、系统桥接、应用配置和 HAP 打包工程 |
 
-每次更新内核后，`build_hap.py --stage hap --build-mode release` 会调用
-`scripts/prepare_chromium_runtime.sh` 同步库和资源，再生成新 HAP。
-安装该新 HAP 才会更新设备中的内核。应用外壳的 `1.0.0` 版本号与
-Chromium 内核的 `158.0.8116.0` 分别记录。
+本仓库需要配套内核编译产生的原生库、ICU、PAK 语言/界面资源及 V8 快照。更新内核后，需要同步资源并重新生成 HAP，设备中的内核才会更新。
 
-入口模块已启用 `compressNativeLibs: true`。运行时准备脚本保留全部语言
-PAK，排除仅供构建分析的 `.pak.info` 文件。
+## 相对132工程的主要改动
 
-在已配置好的 WSL 工作区中构建 158：
+- 接入固定版本 Chromium 158，使用 API 26 构建配置。
+- 使用独立包名 `com.example.ohos.chromium`，可与原132包 `com.example.ohos.chromium2in1` 并存。
+- 适配158的库和资源打包方式，按实际构建配置选择 V8 快照，保留全部语言 PAK。
+- 压缩打包原生库，排除运行时不需要的 `.pak.info` 构建映射文件。
+- 调整上下文路径和应用存储桥接，匹配当前应用身份。
+- 补充显示 HDR、亮度与色彩能力桥接，完善亮度观察者的清理。
+- 恢复屏幕锁定认证入口及 PIN 能力查询，正确传递系统认证结果；取消、失败和未录入均不会被当作成功。
 
-```sh
-cd ../chromium158-ohos
-python3 scripts/build_native.py --stage chrome --jobs 8 --keep-going 0
-python3 scripts/build_hap.py --stage hap --build-mode release
-```
+标签栏、渲染、媒体解码、密码填充策略及窗口隐私状态等 C++ 改动位于配套内核仓库。应用外壳的 `versionName: 1.0.0` 与 Chromium 内核版本分别记录。
 
-以下保留原始 132 工程说明，供追溯上游依赖与工程来源；本地 158 的构建方式
-和当前验证范围以上述移植工程为准。
+## 当前状态与限制
 
-## 当前158实现与本地签名
+项目仍在适配和回归阶段。已有桌面界面、中文资源、AVC/HEVC硬件解码、HDR本地样本和WebGPU等方向的实现与验证记录，但不表示所有网站、扩展和系统功能均已验收。
 
-已补齐密码填充前使用鸿蒙屏幕锁定认证的入口、PIN能力查询和认证结果传递。
-取消、失败和未录入凭据均不会被当作认证成功。界面开关与翻译的原生改动位于相邻内核仓库。
-窗口隐私状态的释放修正也在内核仓库中；菜单尺寸本轮未调整。
+最新 native107 候选已完成 release 编译、打包、包内容及签名校验并安装。最新的每次密码填充独立认证、受保护媒体结束后释放窗口隐私状态等修正，通过了主机模拟检查，尚未完成该候选的设备功能回归。
 
-签名证书、私钥、密码和本机路径不提交。仓库中的 `build-profile.json5` 只保留
-API 26 工程配置；构建签名 HAP 前，请在 DevEco Studio 的签名配置中选择自己的证书。
-当前开发机的签名配置仅保留在本地，不属于仓库交付内容。
+完整验证范围见内核仓库的 [STATUS.md](https://github.com/nimmi114514/chromium-ohos/blob/master/STATUS.md) 和 [native107 交付记录](https://github.com/nimmi114514/chromium-ohos/blob/master/reports/native107-delivery.json)。
 
-## 原始 132 工程说明
-
-将 OpenHarmony Chromium `pc_chromium_132` 分支打包为 **HarmonyOS 6.1.1（API 24）** Stage 模型的 HAP，适配 **2in1 / 平板** 设备。
-
-## 特性
-
-- Chromium 132 内核（`pc_chromium_132` 分支）
-- 桌面版 User-Agent，桌面模式网页体验
-- 支持 Google 账号登录与同步（需要自备 OAuth client id / 代理环境）
-- 高刷新率（支持 90Hz / 120Hz / 144Hz 平板，跟随系统显示刷新率）
-- HDR 播放：10bit EGL 输出、PQ 亮度映射、HDR 色彩空间切换
-- 沉浸式状态栏，可隐藏系统状态栏
-- 视频硬解（OHOS 视频解码器，失败时回退软件解码）
+- 硬件解码格式取决于设备能力；HDR网站选流与面板绝对亮度、色准尚未完整验收。
+- WebGPU呈现暂未实现零拷贝；Graphite、DrDc、TreesInViz、WebNN当前未启用。
+- DRM受保护内容端到端播放尚未完成，不作为当前已支持功能。
+- Google登录/同步配置沿用原132工程中的社区公开配置；实际可用性受凭证、网络和服务端策略影响。本仓库不提供登录或同步可用性的保证。
 
 ## 目录结构
 
 ```text
-AppScope/                 # 应用级配置
-chromium/                 # HAP 主模块（ArkTS 壳 + 原生运行时）
-web_engine/               # Web 引擎封装模块
-scripts/                  # Chromium runtime 准备脚本
+AppScope/                   应用身份、名称、图标与应用级资源
+chromium/                   HAP 入口模块
+web_engine/                 ArkTS 系统接口与浏览器应用封装
+scripts/                    内核运行时准备脚本
+build-profile.json5         API 26 构建配置，仓库不含个人签名配置
+chromium/libs/arm64-v8a/     同步后的原生库，不提交
+web_engine/src/main/resources/resfile/
+                            同步后的 ICU、PAK、V8 快照，不提交
 ```
 
-## 构建 Chromium
+## 获取工程
 
-Chromium 本体需要在独立的 manifest 工作区中构建（不要在 HAP 目录下执行）：
+当前自动构建脚本默认使用历史本地目录名。公开仓库名可以保持现在的名称，克隆时指定本地目录即可：
 
 ```sh
-mkdir -p /path/to/chromium_workspace
-cd /path/to/chromium_workspace
-repo init -u https://gitcode.com/openharmony-tpc/manifest.git \
-  -b pc_chromium_132 -m chromium.xml --no-repo-verify
-repo sync -c
-repo forall -c 'git lfs pull'
-./build.sh -t chrome_main_web
+git clone git@github.com:nimmi114514/chromium-ohos.git chromium158-ohos
+git clone git@github.com:nimmi114514/chromium-desktop-ohos.git chromium-2in1-hap
 ```
 
-构建产物位于 `src/out/musl_64/`。macOS 无法提供上游要求的完整 Linux 工具链，请按上游文档在 Linux 构建环境执行。
+目录布局为：
 
-## 准备 HAP 运行时
+```text
+workspace/
+├── chromium158-ohos/      内核移植仓库
+│   └── src/out/OHOS/     原生编译输出
+└── chromium-2in1-hap/    本 HAP 工程
+```
+
+也可使用 HTTPS 克隆。若修改本地目录名，打包时需通过内核脚本的 `--hap-project` 指定本工程路径。
+
+## 构建与打包
+
+已用环境为 Windows DevEco Studio 26 + API 26 SDK，以及负责原生内核编译的 WSL2。首次构建请先按[内核仓库 README](https://github.com/nimmi114514/chromium-ohos#获取与构建)准备源码、依赖、工具链和补丁。
+
+### 1. 编译内核
+
+在同级内核移植仓库运行：
 
 ```sh
-./scripts/prepare_chromium_runtime.sh /path/to/chromium_workspace
+cd chromium158-ohos
+python3 scripts/build_native.py --stage chrome --jobs 8 --keep-going 0
 ```
 
-参数可以是 manifest 工作区根目录（包含 `src/`）或 Chromium 源码根目录。脚本会校验并拷贝原生库与运行资源，不会提交生成物。
+### 2. 配置本地签名
 
-## 在 DevEco Studio 中构建
+在 DevEco Studio 打开 `chromium-2in1-hap`，为包名 `com.example.ohos.chromium` 配置自己的签名。仓库中的 `build-profile.json5` 不包含个人证书、私钥、密码或签名路径。
 
-- DevEco Studio 6.1.1 Release（HarmonyOS SDK 6.1.1 / API 24）
-- 打开本目录作为 HarmonyOS 工程，配置自己的签名（仓库不包含签名配置）
-- 构建默认 HAP：`build/default/outputs/default/`
+配置证书时应与当前应用包名一致。若需要更改包名，还需同步应用和桥接配置，以及内核仓库中的打包校验规则。
 
-> 注意：`AppScope/app.json5` 中的 bundle name 为示例值 `com.example.ohos.chromium2in1`，发布前请替换为自有 bundle name 并使用生产签名。
+### 3. 同步资源并生成 release HAP
 
-## 安装与启动
+继续在内核移植仓库运行：
 
 ```sh
-hdc install chromium-default-signed.hap
-hdc shell aa start -a EntryAbility -b com.example.ohos.chromium2in1
+python3 scripts/build_hap.py --stage install
+python3 scripts/build_hap.py --stage hap --build-mode release
 ```
 
-## 说明
+`--stage install` 仅安装OHPM工程依赖，不会安装应用到设备。`--stage hap` 会同步当前内核库和资源，然后调用Windows Hvigor生成HAP，完成包内容及签名校验。
 
-- 本仓库只包含工程源码与构建脚本，不包含 Chromium 二进制、签名文件、维护记录等本地敏感信息。
-- Release 发布为 unsigned HAP，请自行签名后安装。
-- 原生库为 arm64 架构，适配 HarmonyOS 2in1 设备。
+若通过 DevEco Studio 手动打包，先在 WSL 中同步运行时：
+
+```sh
+cd ../chromium-2in1-hap
+bash scripts/prepare_chromium_runtime.sh \
+  ../chromium158-ohos/src \
+  ../chromium158-ohos/src/out/OHOS
+```
+
+第二个参数应显式指定158的 `out/OHOS`；脚本不带该参数时保留原132的 `out/musl_64` 默认值。
+
+### 4. 安装
+
+签名包生成在本工程的：
+
+```text
+chromium/build/default/outputs/default/chromium-default-signed.hap
+```
+
+使用 DevEco Studio SDK 提供的 `hdc` 安装和启动：
+
+```sh
+hdc install -r chromium/build/default/outputs/default/chromium-default-signed.hap
+hdc shell aa start -a EntryAbility -b com.example.ohos.chromium
+```
+
+设备连接多个目标时，请用 `hdc -t <设备标识>` 指定目标。
+
+源码仓库不附带原生库、SDK、HAP安装包或个人签名文件。安装包是否发布及对应构建版本，应以实际Release附件与说明为准。
+
+## 来源与致谢
+
+- **[Nyaacho0v0](https://github.com/Nyaacho0v0)**：本项目直接基于其 [chromium-2in1-hap](https://github.com/Nyaacho0v0/chromium-2in1-hap) Chromium 132 工程继续开发。感谢原作者提供的桌面应用工程、系统适配和打包基础。
+- **[OpenHarmony-TPC Chromium 移植项目](https://github.com/OpenHarmony-TPC/chromium_src)**：提供 `pc_chromium_132` 等平台适配工作，是158移植的重要实现参考。
+- **[Chromium 项目](https://chromium.googlesource.com/chromium/src/)**及第三方依赖的维护者：提供浏览器内核和基础组件。
+- 原始文件中署名的 **Haitai FangYuan** 等贡献者，以及持续完善OHOS生态的社区开发者。
+
+本项目的158适配是在上述工作上继续进行的；沿用文件保留原有版权及许可声明，内核和第三方组件的许可信息见相应上游源码。
