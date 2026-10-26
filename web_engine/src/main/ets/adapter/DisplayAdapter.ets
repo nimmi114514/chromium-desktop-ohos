@@ -30,6 +30,7 @@
 import { inject, injectable } from 'inversify';
 import { BusinessError } from '@ohos.base';
 import { display } from '@kit.ArkUI';
+import { colorSpaceManager } from '@kit.ArkGraphics2D';
 import { BaseAdapter } from '../common/BaseAdapter';
 import LogUtil from '../utils/LogUtil';
 import LogMethod from '../common/LogDecorator';
@@ -49,6 +50,7 @@ export interface BrightnessInfo {
   maxHeadroom: number;
   sdrNits: number;
   brightnessPosition: number;
+  supportsP3: boolean;
 }
 
 interface SdkBrightnessInfoExt extends display.BrightnessInfo {
@@ -64,6 +66,8 @@ export class DisplayAdapter extends BaseAdapter {
   private hasInit: boolean = false;
   private statusBarHeight: number = 0;
   private isAvailableAreaMonitor: boolean = false;
+  private brightnessMonitorRegistered: boolean = false;
+  private lastBrightnessInfo: Map<number, display.BrightnessInfo> = new Map();
   private deviceInfoAdapter: DeviceInfoAdapter;
   private static invalidDisplay: CompleteDisplay = {
     id: -1,
@@ -76,6 +80,7 @@ export class DisplayAdapter extends BaseAdapter {
     maxHeadroom: -1,
     sdrNits: -1,
     brightnessPosition: -1,
+    supportsP3: false,
   };
 
   constructor(@inject(ContextAdapter) ctxAdapter: ContextAdapter,
@@ -128,6 +133,7 @@ export class DisplayAdapter extends BaseAdapter {
       let displayBrightnessInfo = display.getBrightnessInfo(displayId);
       if (!displayBrightnessInfo) {
         LogUtil.error(DisplayAdapter.TAG, 'Failed to displayBrightnessInfo.');
+        callback(DisplayAdapter.invalidBrightnessInfo);
         return;
       }
       let sdkBrightnessInfo = displayBrightnessInfo as SdkBrightnessInfoExt;
@@ -136,6 +142,8 @@ export class DisplayAdapter extends BaseAdapter {
         maxHeadroom: sdkBrightnessInfo.maxHeadroom,
         sdrNits: sdkBrightnessInfo.sdrNits,
         brightnessPosition: sdkBrightnessInfo.brightnessPosition ?? -1,
+        supportsP3: display.getDisplayByIdSync(displayId).colorSpaces.includes(
+          colorSpaceManager.ColorSpace.DISPLAY_P3),
       }
       callback(brightnessInfo);
     } catch (exception) {
@@ -202,6 +210,11 @@ export class DisplayAdapter extends BaseAdapter {
       display.on("add", this.onAddCallback);
       display.on("remove", this.onRemoveCallback);
       display.on("change", this.onChangeCallback);
+      if (!this.brightnessMonitorRegistered &&
+        typeof display.getBrightnessInfo === 'function') {
+        display.on('brightnessInfoChange', this.onBrightnessInfoChange);
+        this.brightnessMonitorRegistered = true;
+      }
     } catch (exception) {
       LogUtil.error(DisplayAdapter.TAG, 'Failed to register callback. Code: ' + JSON.stringify(exception));
     }
@@ -252,6 +265,18 @@ export class DisplayAdapter extends BaseAdapter {
     } catch (exception) {
       LogUtil.error(DisplayAdapter.TAG, 'remove event callback fail. Code: ' + JSON.stringify(exception));
     }
+  }
+
+  private onBrightnessInfoChange = (displayId: number, info: display.BrightnessInfo) => {
+    const previous = this.lastBrightnessInfo.get(displayId);
+    this.lastBrightnessInfo.set(displayId, info);
+    // Current headroom also animates when HDR starts/stops; only changes to
+    // the SDR white or available maximum require rebuilding display spaces.
+    if (previous && Math.abs(previous.sdrNits - info.sdrNits) < 0.5 &&
+      Math.abs(previous.maxHeadroom - info.maxHeadroom) < 0.05) {
+      return;
+    }
+    this.onChangeCallback(displayId);
   }
 
   private onChangeCallback = (data: number) => {

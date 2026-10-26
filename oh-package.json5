@@ -5,7 +5,7 @@
     "@ohos/hypium": "1.0.6"
   },
   "author": "",
-  "name": "chromium2in1",
+  "name": "chromium-hap",
   "description": "Chromium browser HAP for HarmonyOS 2 in 1 devices.",
   "main": "",
   "version": "1.0.0",

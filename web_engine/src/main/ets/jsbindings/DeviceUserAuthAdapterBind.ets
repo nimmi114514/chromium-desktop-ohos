@@ -47,5 +47,7 @@ export class DeviceUserAuthAdapterBind {
   static bind() {
     JsBindingUtils.bindFunction("DeviceUserAuthAdapter.StartUserAuth", startUserAuth);
     JsBindingUtils.bindFunction("DeviceUserAuthAdapter.CheckBiometricAvailable", checkBiometricAvailable);
+    JsBindingUtils.bindFunction("DeviceUserAuthAdapter.CheckScreenLockAvailable",
+      (callback: (result: boolean) => void) => implDeviceUserAuthAdapter().checkScreenLockAvailable(callback));
   }
 }

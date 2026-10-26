@@ -31,6 +31,7 @@ import { deviceInfo } from '@kit.BasicServicesKit';
 import { NativeContext } from "../interface/CommonInterface";
 import JsBindingUtils from "./JsBindingUtils";
 import { ContextType } from "../common/Constants";
+import fs from '@ohos.file.fs';
 
 const TAG = 'CmdArgsHelper';
 const SDK_VERSION_19 = 19;
@@ -42,7 +43,7 @@ const GOOGLE_API_KEY = 'AIzaSyBHDrl33hwRp4rMQY0ziRbj8K9LPA6vUCY';
 const GOOGLE_OAUTH_CLIENT_ID = '77185425430.apps.googleusercontent.com';
 const GOOGLE_OAUTH_CLIENT_SECRET = 'OTJgUOQcT7lO7GsGZq2G4IlT';
 const DESKTOP_USER_AGENT =
-  'Mozilla/5.0 (X11; Linux aarch64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36';
+  'Mozilla/5.0 (X11; Linux aarch64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/158.0.0.0 Safari/537.36';
 
 export interface ParsedArg {
   name: string;
@@ -51,17 +52,16 @@ export interface ParsedArg {
 
 export class CmdArgsHelper {
   private static readonly DEFAULT_ARGS: string[] = [
-    "chrome",
+    // The original132 BasicLoader supplies argv[0] in GetEntryArgs().
     "--use-gl=egl",
-    `--enable-features=UseOzonePlatform,OverrideAPIKey:api_key/${GOOGLE_API_KEY}`,
+    "--enable-features=UseOzonePlatform",
     "--ozone-platform=ohos",
     "--enable-logging",
+    "--ohos-enable-hdr",
     "--no-zygote",
     "--disable-gpu-watchdog",
     "--ohos-refresh-rate=144",
     `--user-agent=${DESKTOP_USER_AGENT}`,
-    `--oauth2-client-id=${GOOGLE_OAUTH_CLIENT_ID}`,
-    `--oauth2-client-secret=${GOOGLE_OAUTH_CLIENT_SECRET}`,
   ];
   private static readonly BLOCKED_ARGS_NAME: Set<string> = new Set([
     'ozone-platform',
@@ -75,6 +75,30 @@ export class CmdArgsHelper {
 
   private static getNativeContext(): NativeContext {
     return JsBindingUtils.getNativeContext(ContextType.kMainProcess);
+  }
+
+  private static prepareGoogleConfig(): string | null {
+    // The Chromium 132 Gaia configuration reader supplies default credentials
+    // to every client. The OAuth command-line switches configure CLIENT_MAIN
+    // alone, while HasOAuthClientConfigured also checks the remoting clients.
+    const path = getContext().filesDir + '/chromium-google-services.json';
+    const apiKeys: Record<string, string> = {
+      'GOOGLE_API_KEY': GOOGLE_API_KEY,
+      'GOOGLE_DEFAULT_CLIENT_ID': GOOGLE_OAUTH_CLIENT_ID,
+      'GOOGLE_DEFAULT_CLIENT_SECRET': GOOGLE_OAUTH_CLIENT_SECRET,
+    };
+    try {
+      const file = fs.openSync(path, fs.OpenMode.CREATE | fs.OpenMode.READ_WRITE | fs.OpenMode.TRUNC);
+      try {
+        fs.writeSync(file.fd, JSON.stringify({ api_keys: apiKeys }));
+      } finally {
+        fs.closeSync(file);
+      }
+      return path;
+    } catch (err) {
+      LogUtil.error(TAG, 'Unable to prepare Google service configuration');
+      return null;
+    }
   }
 
   public static buildArgs(startUri: string, userInputArgs?: string[], appId?: string): string[] {
@@ -99,6 +123,10 @@ export class CmdArgsHelper {
 
     let resDir = '--bundle-installation-dir=' + getContext().resourceDir;
     vec_args.push(resDir);
+    const googleConfig = CmdArgsHelper.prepareGoogleConfig();
+    if (googleConfig) {
+      vec_args.push('--gaia-config=' + googleConfig);
+    }
     vec_args.push(startUri);
     if (appId !== undefined) {
       vec_args.push(appId);
@@ -123,7 +151,9 @@ export class CmdArgsHelper {
       vec_args = vec_args.concat(cmdArgs);
     } else {
       jsFlagsValue = CmdArgsHelper.buildJsFlags();
-      vec_args.push(CmdArgsHelper.stringifyOne({ name: 'js-flags', value: jsFlagsValue }));
+      if (jsFlagsValue) {
+        vec_args.push(CmdArgsHelper.stringifyOne({ name: 'js-flags', value: jsFlagsValue }));
+      }
     }
 
     // 检查 vec_args 中是否包含 CAN_BE_REPLACED_ARGS 中的参数

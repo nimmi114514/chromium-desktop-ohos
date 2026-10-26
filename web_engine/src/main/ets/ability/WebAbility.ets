@@ -34,6 +34,44 @@ export class WebAbility extends WebBaseAbility {
   private displayAdapter : DisplayAdapter | undefined = undefined;
   private deviceInfoAdapter: DeviceInfoAdapter | undefined = undefined;
   private appLifecycleAdapter: AppLifecycleAdapter | undefined = undefined;
+  private brightnessObserverContext: Context | undefined = undefined;
+
+  private registerDisplayBrightnessObserver() {
+    if (deviceInfo.sdkApiVersion < 22 ||
+      typeof this.nativeContext.UpdateDisplayBrightnessCB !== 'function') {
+      return;
+    }
+    const context: Context = getContext(this);
+    try {
+      const registered = settings.registerKeyObserver(context,
+        settings.display.SCREEN_BRIGHTNESS_STATUS, settings.domainName.DEVICE_SHARED, () => {
+          if (this.brightnessObserverContext !== context) {
+            return;
+          }
+          const value = settings.getValueSync(context, settings.display.SCREEN_BRIGHTNESS_STATUS, '10');
+          this.nativeContext.UpdateDisplayBrightnessCB?.(value);
+        });
+      if (registered) {
+        this.brightnessObserverContext = context;
+      }
+    } catch (error) {
+      LogUtil.error(TAG, 'Failed to register display brightness observer');
+    }
+  }
+
+  private unregisterDisplayBrightnessObserver() {
+    const context = this.brightnessObserverContext;
+    this.brightnessObserverContext = undefined;
+    if (context === undefined) {
+      return;
+    }
+    try {
+      settings.unregisterKeyObserver(context, settings.display.SCREEN_BRIGHTNESS_STATUS,
+        settings.domainName.DEVICE_SHARED);
+    } catch (error) {
+      LogUtil.error(TAG, 'Failed to unregister display brightness observer');
+    }
+  }
  
   onConfigurationUpdate(config: Configuration) {
     this.displayAdapter?.onSystemFontSizeChange(config.fontSizeScale);
@@ -42,12 +80,20 @@ export class WebAbility extends WebBaseAbility {
   private async getWebappInfo() : Promise<IWebAppInfo | undefined> {
     const appIdPrefix = "--app-id=";
     let key = this.appId.startsWith(appIdPrefix) ? this.appId.substring(appIdPrefix.length) : this.appId;
+    if (key.length === 0) {
+      return undefined;
+    }
     const kvStore: KVStoreInterface | undefined = await kvManager.getKVStore('webapp');
     const webappInfo: string | undefined = await kvStore?.getData(key);
     if (!webappInfo) {
       return Promise.resolve(undefined);
     }
-    return Promise.resolve(JSON.parse(webappInfo));
+    try {
+      return JSON.parse(webappInfo);
+    } catch (err) {
+      LogUtil.warn(TAG, 'Ignoring invalid saved web app metadata');
+      return undefined;
+    }
   }
  
   private async updateWebAppIcon() {
@@ -280,15 +326,7 @@ export class WebAbility extends WebBaseAbility {
         this.nativeContext.RegisterWindowEventFilter(window.getWindowProperties().id);
       }
 
-      // display brightness observer 
-      if (deviceInfo.sdkApiVersion >= 22) {
-        const context: Context = getContext(this);
-        let res: boolean = settings.registerKeyObserver(context,
-          settings.display.SCREEN_BRIGHTNESS_STATUS, settings.domainName.DEVICE_SHARED, () => {
-            let value: string = settings.getValueSync(context, settings.display.SCREEN_BRIGHTNESS_STATUS, '10');
-            this.nativeContext.UpdateDisplayBrightnessCB(value);
-          });
-      }
+      this.registerDisplayBrightnessObserver();
 
       try {
         if (this.xcomponentId === ConfigData.DEFAULT_WINDOW_ID) {
@@ -309,6 +347,7 @@ export class WebAbility extends WebBaseAbility {
   }
 
   onWindowStageDestroy() {
+    this.unregisterDisplayBrightnessObserver();
     LogUtil.info(TAG, '[ohoswindow] in WebAbility onWindowStageDestroy.');    
     if (CheckEmptyUtils.isEmpty(this.xcomponentId)) {
       LogUtil.warn(TAG, 'onWindowStageDestroy component is not instantiated');
@@ -403,6 +442,7 @@ export class WebAbility extends WebBaseAbility {
   }
 
   async onDestroy(): Promise<void> {
+    this.unregisterDisplayBrightnessObserver();
     let id: number = Number(this.xcomponentId.substring(ConfigData.WINDOW_PREFIX.length));
     while (true) {
       await this.sleep(WebAbility.SLEEP_INTERVAL_MS);

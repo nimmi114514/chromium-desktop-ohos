@@ -32,6 +32,10 @@ import fileUri from '@ohos.file.fileuri';
 export default class StringUtil {
   private static TAG: string = 'StringUtil';
 
+  static filterFileDocs(uri: string): string {
+    return new fileUri.FileUri(uri).path;
+  }
+
   static uriConvert(docs: string[]): string[] {
     let copy: string[] = [];
     docs.forEach((path) => {

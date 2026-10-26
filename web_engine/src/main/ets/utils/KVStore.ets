@@ -1,6 +1,6 @@
 import { distributedKVStore } from '@kit.ArkData';
 import { window } from '@kit.ArkUI';
-import { UIAbility } from '@kit.AbilityKit';
+import { bundleManager } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import common from '@ohos.app.ability.common';
 import LogUtil from '../utils/LogUtil';
@@ -64,6 +64,9 @@ class KVStore {
   }
 
   public async addData(key: string, value: string) : Promise<boolean> {
+    if (key.length === 0 || !this.kvStore) {
+      return false;
+    }
     return new Promise((resolve, reject) => {
       try {
         this.kvStore?.put(key, value, (err) => {
@@ -83,6 +86,9 @@ class KVStore {
   }
 
   public deleteData(key: string) {
+    if (key.length === 0 || !this.kvStore) {
+      return;
+    }
     this.kvStore?.delete(key, (err) => {
       if (err) {
         LogUtil.error(KVStore.TAG, `Failed to delete data. Code:${err.code},message:${err.message} ${this.name} - ${key}`);
@@ -93,16 +99,23 @@ class KVStore {
   }
 
   public async getData(key: string): Promise<string | undefined> {
+    if (key.length === 0 || !this.kvStore) {
+      return undefined;
+    }
     return new Promise((resolve, reject) => {
-      this.kvStore?.get(key, (err, data) => {
-        if (err) {
-          LogUtil.error(KVStore.TAG, `Failed to get data. Code:${err.code},message:${err.message} ${this.name} - ${key}`);
-          resolve(undefined);
-          return;
-        }
-        LogUtil.info(KVStore.TAG, `success get data. name: ${this.name} key:${key},date:${data as string}`);
-        resolve(data as string);
-      });
+      try {
+        this.kvStore!.get(key, (err, data) => {
+          if (err) {
+            LogUtil.error(KVStore.TAG, `Failed to get data. Code:${err.code},message:${err.message} ${this.name} - ${key}`);
+            resolve(undefined);
+            return;
+          }
+          LogUtil.info(KVStore.TAG, `success get data. name: ${this.name} key:${key},date:${data as string}`);
+          resolve(data as string);
+        });
+      } catch (err) {
+        resolve(undefined);
+      }
     });
   }
 };
@@ -122,9 +135,11 @@ class KVManager {
       return;
     }
     try {
+      const bundleInfo = bundleManager.getBundleInfoForSelfSync(
+        bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT);
       const kvManagerConfig: distributedKVStore.KVManagerConfig = {
         context: ctx,
-        bundleName: "com.haitai.htrlbrowser"
+        bundleName: bundleInfo.name
       };
       this.kvManager = distributedKVStore.createKVManager(kvManagerConfig);
       if (this.kvManager == undefined) {
