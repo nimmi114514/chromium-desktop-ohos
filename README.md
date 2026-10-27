@@ -18,7 +18,7 @@
 ## 相对132工程的主要改动
 
 - 接入固定版本 Chromium 158，使用 API 26 构建配置。
-- 使用新包名 `com.example.chromium`，可与设备上现有的 `com.example.ohos.chromium` 并存；安装新包不会删除或覆盖旧包及其数据。
+- 使用独立包名 `com.example.ohos.chromium`，可与原132包 `com.example.ohos.chromium2in1` 并存。
 - 适配158的库和资源打包方式，按实际构建配置选择 V8 快照，保留全部语言 PAK。
 - 压缩打包原生库，排除运行时不需要的 `.pak.info` 构建映射文件。
 - 调整上下文路径和应用存储桥接，匹配当前应用身份。
@@ -38,7 +38,6 @@
 - 硬件解码格式取决于设备能力；HDR网站选流与面板绝对亮度、色准尚未完整验收。
 - WebGPU呈现暂未实现零拷贝；Graphite、DrDc、TreesInViz、WebNN当前未启用。
 - DRM受保护内容端到端播放尚未完成，不作为当前已支持功能。
-- 本分支已声明自带 V8 的 JIT 受限权限，需重新申请包含该 ACL 的有效 Profile；旧签名配置不能直接作为 JIT 授权使用，真机 JIT 尚未验证。参见 [JIT 权限申请与调试签名](docs/JIT_ACL.md)。
 - Google登录/同步配置沿用原132工程中的社区公开配置；实际可用性受凭证、网络和服务端策略影响。本仓库不提供登录或同步可用性的保证。
 
 ## 目录结构
@@ -89,7 +88,7 @@ python3 scripts/build_native.py --stage chrome --jobs 8 --keep-going 0
 
 ### 2. 配置本地签名
 
-在 DevEco Studio 打开 `chromium-2in1-hap`，为包名 `com.example.chromium` 配置自己的签名。仓库中的 `build-profile.json5` 不包含个人证书、私钥、密码或签名路径。
+在 DevEco Studio 打开 `chromium-2in1-hap`，为包名 `com.example.ohos.chromium` 配置自己的签名。仓库中的 `build-profile.json5` 不包含个人证书、私钥、密码或签名路径。
 
 配置证书时应与当前应用包名一致。若需要更改包名，还需同步应用和桥接配置，以及内核仓库中的打包校验规则。
 
@@ -127,7 +126,7 @@ chromium/build/default/outputs/default/chromium-default-signed.hap
 
 ```sh
 hdc install -r chromium/build/default/outputs/default/chromium-default-signed.hap
-hdc shell aa start -a EntryAbility -b com.example.chromium
+hdc shell aa start -a EntryAbility -b com.example.ohos.chromium
 ```
 
 设备连接多个目标时，请用 `hdc -t <设备标识>` 指定目标。

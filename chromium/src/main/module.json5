@@ -13,9 +13,6 @@
     "requestPermissions": [
       {
         "name": "ohos.permission.kernel.ALLOW_WRITABLE_CODE_MEMORY"
-      },
-      {
-        "name": "ohos.permission.kernel.ALLOW_USE_JITFORT_INTERFACE"
       }
     ],
     "deliveryWithInstall": true,
@@ -70,8 +67,8 @@
           {
             "name": "ohos.ability.shortcuts",
             "resource": "$profile:shortcuts_config"
-          }
-        ]
+          },
+        ],
       },
       {
         "name": "BrowserAbility",
@@ -107,7 +104,7 @@
               }
             ]
           }
-        ]
+        ],
       },
       {
         "name": "StatelessAbility",
@@ -118,7 +115,7 @@
         "startWindowBackground": "$color:start_window_background",
         "launchType": "specified",
         "removeMissionAfterTerminate": true,
-        "exported": true
+        "exported": true,
       },
       {
         "name": "TaskManagerAbility",
@@ -129,14 +126,14 @@
         "startWindowBackground": "$color:start_window_background",
         "launchType": "specified",
         "removeMissionAfterTerminate": true,
-        "exported": true
+        "exported": true,
        }
     ],
     "extensionAbilities": [
       {
         "name": "BrowserEmbeddedAbility",
         "srcEntry": "./ets/extensionAbility/BrowserEmbeddedAbility.ets",
-        "type": "embeddedUI"
+        "type": "embeddedUI",
       }
     ]
   }
