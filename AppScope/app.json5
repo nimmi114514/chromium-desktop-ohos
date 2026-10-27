@@ -1,6 +1,6 @@
 {
   "app": {
-    "bundleName": "com.example.ohos.chromium",
+    "bundleName": "com.example.chromium",
     "vendor": "openharmony-tpc",
     "versionCode": 1000000,
     "versionName": "1.0.0",

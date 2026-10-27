@@ -62,7 +62,7 @@ export class WebAppAdapter extends BaseAdapter {
       LogUtil.error(TAG, 'getBundleInfoForSelfSync failed. Cause: ' + JSON.stringify(exception));
     }
     const want: Want = {
-      bundleName: "com.example.ohos.chromium",
+      bundleName: "com.example.chromium",
       moduleName: this.moduleName,
       abilityName: "EntryAbility",
       parameters: {

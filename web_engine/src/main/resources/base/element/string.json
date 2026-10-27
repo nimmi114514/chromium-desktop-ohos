@@ -62,11 +62,11 @@
     },
     {
       "name": "pasteBoard_dialog_content",
-      "value": "You have disabled the clipboard access permission. Go to Settings > Privacy & security > Clipboard and enable the clipboard access permission for label"
+      "value": "You have disabled the clipboard access permission. Go to Settings \u003e Privacy \u0026 security \u003e Clipboard and enable the clipboard access permission for label"
     },
     {
       "name": "screenshot_dialog_content",
-      "value": "You have disabled the screenshoot access permission. Go to Settings > Privacy & security > Screenshot and enable the screenshot access permission for label"
+      "value": "You have disabled the screenshoot access permission. Go to Settings \u003e Privacy \u0026 security \u003e Screenshot and enable the screenshot access permission for label"
     },
     {
       "name": "dialog_confirm_button",

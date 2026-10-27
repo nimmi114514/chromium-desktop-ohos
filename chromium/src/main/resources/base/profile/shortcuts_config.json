@@ -5,7 +5,7 @@
       "label": "$string:OpenNewWindow_label",
       "wants": [
         {
-          "bundleName": "com.example.ohos.chromium",
+          "bundleName": "com.example.chromium",
           "moduleName": "chromium",
           "abilityName": "EntryAbility",
           "parameters": {

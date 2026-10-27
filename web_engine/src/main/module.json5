@@ -17,20 +17,20 @@
         "name": "ohos.permission.LOCATION",
         "reason": "$string:reason",
         "usedScene": {
+          "when": "always",
           "abilities": [
             "EntryAbility"
-          ],
-          "when":"always"
+          ]
         }
       },
       {
         "name": "ohos.permission.APPROXIMATELY_LOCATION",
         "reason": "$string:reason",
         "usedScene": {
+          "when": "always",
           "abilities": [
             "EntryAbility"
-          ],
-          "when":"always"
+          ]
         }
       },
       {
@@ -38,18 +38,15 @@
       },
       {
         "name": "ohos.permission.MICROPHONE",
-        "reason": "$string:microphone",
+        "reason": "$string:microphone"
       },
       {
         "name": "ohos.permission.CAMERA",
-        "reason": "$string:camera",
+        "reason": "$string:camera"
       },
-//      {
-//        "name": "ohos.permission.PRINT"
-//      },
       {
         "name": "ohos.permission.READ_PASTEBOARD",
-        "reason": "$string:access_pasteboard",
+        "reason": "$string:access_pasteboard"
       },
       {
         "name": "ohos.permission.ACCESS_BIOMETRIC"
@@ -61,12 +58,12 @@
         "name": "ohos.permission.ACCESS_BLUETOOTH",
         "reason": "$string:access_bluetooth",
         "usedScene": {
+          "when": "always",
           "abilities": [
             "EntryAbility"
-          ],
-          "when":"always"
+          ]
         }
-      },      
+      },
       {
         "name": "ohos.permission.FILE_ACCESS_PERSIST"
       },
@@ -102,7 +99,7 @@
     "definePermissions": [
       {
         "name": "ohos.permission.LOCK_WINDOW_CURSOR"
-      },      
+      }
     ]
   }
 }
