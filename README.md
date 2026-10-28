@@ -31,9 +31,9 @@
 
 项目仍在适配和回归阶段。已有桌面界面、中文资源、AVC/HEVC硬件解码、HDR本地样本和WebGPU等方向的实现与验证记录，但不表示所有网站、扩展和系统功能均已验收。
 
-最新 native107 候选已完成 release 编译、打包、包内容及签名校验并安装。最新的每次密码填充独立认证、受保护媒体结束后释放窗口隐私状态等修正，通过了主机模拟检查，尚未完成该候选的设备功能回归。
+2026-10-28交付包含原生历史/书签弹窗、弹窗新增收藏的生命周期崩溃修复，以及OHOS V8启动时的内嵌builtins复制回退。release编译、包内容及签名校验通过，已使用原包名覆盖安装并保留Profile；用户反馈本次问题已正常。此反馈不代表所有功能全面回归完成。上述C++改动由配套内核仓库维护，本应用外壳运行源码沿用现有配置。
 
-完整验证范围见内核仓库的 [STATUS.md](https://github.com/nimmi114514/chromium-ohos/blob/master/STATUS.md) 和 [native107 交付记录](https://github.com/nimmi114514/chromium-ohos/blob/master/reports/native107-delivery.json)。
+完整验证范围见内核仓库的 [STATUS.md](https://github.com/nimmi114514/chromium-ohos/blob/master/STATUS.md) 和 [2026-10-28交付记录](https://github.com/nimmi114514/chromium-ohos/blob/master/docs/delivery-2026-10-28.md)。
 
 - 硬件解码格式取决于设备能力；HDR网站选流与面板绝对亮度、色准尚未完整验收。
 - WebGPU呈现暂未实现零拷贝；Graphite、DrDc、TreesInViz、WebNN当前未启用。
