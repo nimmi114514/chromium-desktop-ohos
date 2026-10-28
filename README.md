@@ -13,7 +13,9 @@
 | [chromium-ohos](https://github.com/nimmi114514/chromium-ohos) | Chromium 158 内核及依赖适配补丁、构建工具、验证记录 |
 | [chromium-desktop-ohos](https://github.com/nimmi114514/chromium-desktop-ohos)（本仓库） | ArkTS 应用壳、系统桥接、应用配置和 HAP 打包工程 |
 
-本仓库需要配套内核编译产生的原生库、ICU、PAK 语言/界面资源及 V8 快照。更新内核后，需要同步资源并重新生成 HAP，设备中的内核才会更新。
+本仓库需要配套内核编译产生的原生库、ICU、PAK语言/界面资源及V8快照。**只有本HAP仓库无法单独编译出完整浏览器**；应先按配套仓库的[从两个仓库构建完整HAP](https://github.com/nimmi114514/chromium-ohos#从两个仓库构建完整-hap)获取固定Chromium源码和DEPS依赖、应用补丁并编译内核，再打包本工程。无需额外取得作者的私有子仓库。
+
+应用版本当前保持 `1.0.0`；它与Chromium内核版本 `158.0.8116.0` 分开管理。更新内核后，需要同步资源并重新生成HAP，设备中的内核才会更新。
 
 ## 相对132工程的主要改动
 
@@ -75,7 +77,7 @@ workspace/
 
 ## 构建与打包
 
-已用环境为 Windows DevEco Studio 26 + API 26 SDK，以及负责原生内核编译的 WSL2。首次构建请先按[内核仓库 README](https://github.com/nimmi114514/chromium-ohos#获取与构建)准备源码、依赖、工具链和补丁。
+已用环境为 Windows DevEco Studio 26 + API 26 SDK，以及负责原生内核编译的 WSL2。首次构建请完整执行[内核仓库的构建流程](https://github.com/nimmi114514/chromium-ohos#从两个仓库构建完整-hap)：包括固定depot_tools、gclient同步Git及CIPD/GCS依赖、prepare_build生成版本文件、补丁、SDK导入与原生编译。下面是完成那些步骤后的HAP阶段说明。
 
 ### 1. 编译内核
 
@@ -83,14 +85,16 @@ workspace/
 
 ```sh
 cd chromium158-ohos
-python3 scripts/build_native.py --stage chrome --jobs 8 --keep-going 0
+python3 scripts/build_native.py --stage chrome --jobs 4 --keep-going 1
 ```
 
 ### 2. 配置本地签名
 
 在 DevEco Studio 打开 `chromium-2in1-hap`，为包名 `com.example.ohos.chromium` 配置自己的签名。仓库中的 `build-profile.json5` 不包含个人证书、私钥、密码或签名路径。
 
-配置证书时应与当前应用包名一致。若需要更改包名，还需同步应用和桥接配置，以及内核仓库中的打包校验规则。
+配置证书时应与当前应用包名一致。签名前可用 `git update-index --skip-worktree build-profile.json5` 保留本机签名配置；升级仓库模板前备份该配置，再用 `--no-skip-worktree` 恢复跟踪。不要提交包含证书路径、密码或私钥的本机配置。
+
+SDK、OHPM/Hvigor下载和个人签名需自行准备，不从作者工作目录复制。使用自己的签名不能直接覆盖另一开发者签名的安装包。若需要更改包名，还需同步应用和桥接配置，以及内核仓库中的打包校验规则。
 
 ### 3. 同步资源并生成 release HAP
 
