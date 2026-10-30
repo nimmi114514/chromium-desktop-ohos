@@ -46,7 +46,8 @@ const EVENT_DEVICE_DETATCHED: string = 'usual.event.hardware.usb.action.USB_DEVI
 @injectable()
 export class DeviceAdapter extends BaseAdapter {
   private static TAG: string = 'DeviceAdapter';
-  private subscriber: CommonEventManager.CommonEventSubscriber | undefined = undefined;
+  private subscribers: Map<number, CommonEventManager.CommonEventSubscriber> = new Map();
+  private pendingSubscribers: Set<number> = new Set();
   private subscribeInfo: CommonEventManager.CommonEventSubscribeInfo = {
     events: [
       CommonEventManager.Support.COMMON_EVENT_USB_DEVICE_ATTACHED,
@@ -71,24 +72,32 @@ export class DeviceAdapter extends BaseAdapter {
   }
 
   @LogMethod
-  registerHotplugCallback(hotplug_cb: Function): void {
+  registerHotplugCallback(id: number, hotplug_cb: Function): void {
+    this.pendingSubscribers.add(id);
     try {
-      CommonEventManager.createSubscriber(this.subscribeInfo, (err, commonEventSubscriber) => {
+      CommonEventManager.createSubscriber(this.subscribeInfo, (err, subscriber) => {
         if (err) {
-          LogUtil.error(DeviceAdapter.TAG, `CreateSubscriber failed, code is ${err.code}, message is ${err.message}`);
+          this.pendingSubscribers.delete(id);
+          LogUtil.error(DeviceAdapter.TAG, `CreateSubscriber failed: ${err.code}`);
           return;
         }
-
-        this.subscriber = commonEventSubscriber;
-        CommonEventManager.subscribe(this.subscriber, (err, data) => {
-          let eventInfo = this.parseEventData(err, data);
-          if (eventInfo !== undefined && hotplug_cb !== undefined) {
+        if (!this.pendingSubscribers.delete(id)) {
+          return;
+        }
+        this.subscribers.set(id, subscriber);
+        CommonEventManager.subscribe(subscriber, (error, data) => {
+          if (this.subscribers.get(id) !== subscriber) {
+            return;
+          }
+          const eventInfo = this.parseEventData(error, data);
+          if (eventInfo !== undefined) {
             hotplug_cb(eventInfo.type, eventInfo.data, eventInfo.data.length);
           }
         });
       });
     } catch (err) {
-      LogUtil.error(DeviceAdapter.TAG, `CreateSubscriber failed, code is ${err.code}, message is ${err.message}`);
+      this.pendingSubscribers.delete(id);
+      LogUtil.error(DeviceAdapter.TAG, `CreateSubscriber failed: ${err.code}`);
     }
   }
 
@@ -107,7 +116,19 @@ export class DeviceAdapter extends BaseAdapter {
     }
     let devices: Array<usb.USBDevice> = [];
     if (eventType !== 0 && data.data !== undefined) {
-      let usbDevice: usb.USBDevice = JSON.parse(data.data);
+      let usbDevice: usb.USBDevice;
+      try {
+        usbDevice = JSON.parse(data.data) as usb.USBDevice;
+        if (eventType === 1) {
+          const current = usb.getDevices().find((device: usb.USBDevice) => device.name === usbDevice.name);
+          if (current !== undefined) {
+            usbDevice = current;
+          }
+        }
+      } catch (error) {
+        LogUtil.warn(DeviceAdapter.TAG, 'Invalid USB hotplug event payload');
+        return undefined;
+      }
       if (usbDevice === undefined) {
         LogUtil.warn(DeviceAdapter.TAG, 'Parse event data error.');
         return undefined;
@@ -123,21 +144,33 @@ export class DeviceAdapter extends BaseAdapter {
   }
 
   @LogMethod
-  unregisterHotplugCallback(): void {
+  unregisterHotplugCallback(id: number): void {
+    this.pendingSubscribers.delete(id);
+    const subscriber = this.subscribers.get(id);
+    this.subscribers.delete(id);
+    if (subscriber === undefined) {
+      return;
+    }
     try {
-      CommonEventManager.unsubscribe(this.subscriber, (err: Base.BusinessError) => {
+      CommonEventManager.unsubscribe(subscriber, (err: Base.BusinessError) => {
         if (err) {
-          LogUtil.error(DeviceAdapter.TAG, `Unsubscribe failed, code is ${err.code}, message is ${err.message}`);
+          LogUtil.error(DeviceAdapter.TAG, `Unsubscribe failed: ${err.code}`);
         }
       });
     } catch (err) {
-      LogUtil.error(DeviceAdapter.TAG, `Unsubscribe failed, code is ${err.code}, message is ${err.message}`);
+      LogUtil.error(DeviceAdapter.TAG, `Unsubscribe failed: ${err.code}`);
     }
   }
 
   @LogMethod
   hasRight(deviceName: string): boolean {
-    return usb.hasRight(deviceName);
+    try {
+      return usb.hasRight(deviceName);
+    } catch (err) {
+      LogUtil.error(DeviceAdapter.TAG,
+        `hasRight failed, code is ${err.code}, message is ${err.message}`);
+      return false;
+    }
   }
 
   @LogMethod
@@ -173,12 +206,16 @@ export class DeviceAdapter extends BaseAdapter {
   }
 
   @LogMethod
-  getRawDescriptor(pipe: usb.USBDevicePipe, callback: (descriptor: Uint8Array, length: number) => void): void {
+  getRawDescriptor(pipe: usb.USBDevicePipe, callback: (descriptor: Array<number>, length: number) => void): void {
     try {
       const rawDescriptor: Uint8Array = usb.getRawDescriptor(pipe);
-      callback(rawDescriptor, rawDescriptor.length);
+      // AKI's std::vector converter uses napi_get_array_length, which accepts
+      // JavaScript arrays rather than Uint8Array. Preserve the bytes explicitly.
+      const bytes: Array<number> = Array.from(rawDescriptor);
+      callback(bytes, bytes.length);
     } catch(err) {
       LogUtil.error(DeviceAdapter.TAG, `getRawDescriptor failed, code is ${err.code}, message is ${err.message}`);
+      callback([], 0);
     }
   }
 

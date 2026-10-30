@@ -44,12 +44,12 @@ function hasRight(deviceName: string): boolean {
   return implDeviceAdapter().hasRight(deviceName);
 }
 
-function registerHotplugCallback(callback: Function): void {
-  implDeviceAdapter().registerHotplugCallback(callback);
+function registerHotplugCallback(id: number, callback: Function): void {
+  implDeviceAdapter().registerHotplugCallback(id, callback);
 }
 
-function unregisterHotplugCallback(): void {
-  implDeviceAdapter().unregisterHotplugCallback();
+function unregisterHotplugCallback(id: number): void {
+  implDeviceAdapter().unregisterHotplugCallback(id);
 }
 
 function requestRight(deviceName: string, callback: (isGranted: boolean) => void): void {
@@ -64,7 +64,7 @@ function openDevice(device: usb.USBDevice, callback: (pipe: usb.USBDevicePipe) =
   return implDeviceAdapter().openDevice(device, callback);
 }
 
-function getRawDescriptor(pipe: usb.USBDevicePipe, callback: (descriptor: Uint8Array, length: number) => void): void {
+function getRawDescriptor(pipe: usb.USBDevicePipe, callback: (descriptor: Array<number>, length: number) => void): void {
   implDeviceAdapter().getRawDescriptor(pipe, callback);
 }
 

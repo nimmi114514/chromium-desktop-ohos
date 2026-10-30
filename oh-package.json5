@@ -8,6 +8,6 @@
   "name": "chromium-hap",
   "description": "Chromium browser HAP for HarmonyOS 2 in 1 devices.",
   "main": "",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "dependencies": {}
 }
