@@ -27,139 +27,53 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-import Base from '@ohos.base';
-import CommonEventManager from '@ohos.commonEventManager';
 import usb from '@ohos.usbManager';
 import { injectable } from 'inversify';
 import { BaseAdapter } from '../common/BaseAdapter';
 import LogUtil from '../utils/LogUtil';
 import LogMethod from '../common/LogDecorator';
-
-interface EventInfo {
-  type: number,
-  data: Array<usb.USBDevice>
-};
-
-const EVENT_DEVICE_ATTATCHED: string = 'usual.event.hardware.usb.action.USB_DEVICE_ATTACHED';
-const EVENT_DEVICE_DETATCHED: string = 'usual.event.hardware.usb.action.USB_DEVICE_DETACHED';
+import { UsbHotplugMonitor } from './UsbHotplugMonitor';
 
 @injectable()
 export class DeviceAdapter extends BaseAdapter {
   private static TAG: string = 'DeviceAdapter';
-  private subscribers: Map<number, CommonEventManager.CommonEventSubscriber> = new Map();
-  private pendingSubscribers: Set<number> = new Set();
-  private subscribeInfo: CommonEventManager.CommonEventSubscribeInfo = {
-    events: [
-      CommonEventManager.Support.COMMON_EVENT_USB_DEVICE_ATTACHED,
-      CommonEventManager.Support.COMMON_EVENT_USB_DEVICE_DETACHED,
-    ]
-  };
 
   @LogMethod
   getDevices(get_devices_cb?: Function) : boolean {
     let devices : Array<usb.USBDevice> = [];
+    let snapshotSucceeded: boolean = true;
     try {
       devices = usb.getDevices();
-      if (get_devices_cb != undefined) {
-        get_devices_cb(devices, devices.length);
-      }
     } catch (err) {
       LogUtil.error(DeviceAdapter.TAG,
         `Failed to obtain device information, code is ${err.code}, message is ${err.message}`);
-      return false;
+      snapshotSucceeded = false;
     }
-    return true;
+    const knownNames = new Set<string>(devices.map((device: usb.USBDevice) => device.name));
+    for (const device of UsbHotplugMonitor.getCachedDevices()) {
+      if (!knownNames.has(device.name)) {
+        devices.push(device);
+        knownNames.add(device.name);
+      }
+    }
+    LogUtil.info(DeviceAdapter.TAG,
+      `USB enumeration snapshot=${snapshotSucceeded}, listed=${devices.length}, cached=${UsbHotplugMonitor.getCachedDevices().length}`);
+    if (get_devices_cb != undefined) {
+      get_devices_cb(devices, devices.length);
+    }
+    return snapshotSucceeded || devices.length > 0;
   }
 
   @LogMethod
   registerHotplugCallback(id: number, hotplug_cb: Function): void {
-    this.pendingSubscribers.add(id);
-    try {
-      CommonEventManager.createSubscriber(this.subscribeInfo, (err, subscriber) => {
-        if (err) {
-          this.pendingSubscribers.delete(id);
-          LogUtil.error(DeviceAdapter.TAG, `CreateSubscriber failed: ${err.code}`);
-          return;
-        }
-        if (!this.pendingSubscribers.delete(id)) {
-          return;
-        }
-        this.subscribers.set(id, subscriber);
-        CommonEventManager.subscribe(subscriber, (error, data) => {
-          if (this.subscribers.get(id) !== subscriber) {
-            return;
-          }
-          const eventInfo = this.parseEventData(error, data);
-          if (eventInfo !== undefined) {
-            hotplug_cb(eventInfo.type, eventInfo.data, eventInfo.data.length);
-          }
-        });
-      });
-    } catch (err) {
-      this.pendingSubscribers.delete(id);
-      LogUtil.error(DeviceAdapter.TAG, `CreateSubscriber failed: ${err.code}`);
-    }
-  }
-
-  private parseEventData(err: Base.BusinessError,
-                         data: CommonEventManager.CommonEventData): EventInfo | undefined {
-    if (err) {
-      LogUtil.error(DeviceAdapter.TAG, `ParseEventData failed, code is ${err.code}, message is ${err.message}`);
-      return undefined;
-    }
-
-    let eventType: number = 0;
-    if (data.event === EVENT_DEVICE_ATTATCHED) {
-      eventType = 1;
-    } else if (data.event === EVENT_DEVICE_DETATCHED) {
-      eventType = 2;
-    }
-    let devices: Array<usb.USBDevice> = [];
-    if (eventType !== 0 && data.data !== undefined) {
-      let usbDevice: usb.USBDevice;
-      try {
-        usbDevice = JSON.parse(data.data) as usb.USBDevice;
-        if (eventType === 1) {
-          const current = usb.getDevices().find((device: usb.USBDevice) => device.name === usbDevice.name);
-          if (current !== undefined) {
-            usbDevice = current;
-          }
-        }
-      } catch (error) {
-        LogUtil.warn(DeviceAdapter.TAG, 'Invalid USB hotplug event payload');
-        return undefined;
-      }
-      if (usbDevice === undefined) {
-        LogUtil.warn(DeviceAdapter.TAG, 'Parse event data error.');
-        return undefined;
-      }
-      devices.push(usbDevice);
-      let eventInfo: EventInfo = {
-        type: eventType,
-        data: devices
-      };
-      return eventInfo;
-    }
-    return undefined;
+    UsbHotplugMonitor.register(id, hotplug_cb);
+    LogUtil.info(DeviceAdapter.TAG,
+      `USB hotplug callback registered: id=${id}, cached=${UsbHotplugMonitor.getCachedDevices().length}`);
   }
 
   @LogMethod
   unregisterHotplugCallback(id: number): void {
-    this.pendingSubscribers.delete(id);
-    const subscriber = this.subscribers.get(id);
-    this.subscribers.delete(id);
-    if (subscriber === undefined) {
-      return;
-    }
-    try {
-      CommonEventManager.unsubscribe(subscriber, (err: Base.BusinessError) => {
-        if (err) {
-          LogUtil.error(DeviceAdapter.TAG, `Unsubscribe failed: ${err.code}`);
-        }
-      });
-    } catch (err) {
-      LogUtil.error(DeviceAdapter.TAG, `Unsubscribe failed: ${err.code}`);
-    }
+    UsbHotplugMonitor.unregister(id);
   }
 
   @LogMethod

@@ -10,6 +10,7 @@ import Want from '@ohos.app.ability.Want';
 import { CommandType, ConfigData, ContextType } from '../common/Constants';
 import { ConfigurationConstant, Configuration, AbilityConstant } from '@kit.AbilityKit';
 import { NativeThemeAdapter } from '../adapter/NativeThemeAdapter'
+import { UsbHotplugMonitor } from '../adapter/UsbHotplugMonitor';
 import lazy { CommonDependencyProvider } from '../common/CommonDependencyProvider';
 import lazy { GlobalThisHelper } from '../utils/GlobalThisHelper';
 import lazy { NativeContext, BrowserCloseResponse } from '../interface/CommonInterface';
@@ -26,6 +27,7 @@ export class WebAbilityStage extends AbilityStage {
 
   onCreate(): void {
     LogUtil.info(TAG, '[ohoswindow] in WebAbilityStage onCreate.');
+    UsbHotplugMonitor.start();
     this.runTaskAsync();
   }
 
