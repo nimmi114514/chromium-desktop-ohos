@@ -189,7 +189,8 @@ export class WebAbility extends WebBaseAbility {
           const prop = data.getWindowProperties();
           const rect = option.rect;
           let statusBarHeight = 0;
-          if (this.deviceInfoAdapter?.isNormalWindowMode()) {
+          if (this.deviceInfoAdapter?.isNormalWindowMode() &&
+            data.getWindowStatus() === window.WindowStatusType.FULL_SCREEN) {
             statusBarHeight = data.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM).topRect.height;
             //The current system has a timing issue where the drawableRect lags in updating during mode switching.
             //Here, when switching to normal mode, the drawableRect is set to 0 
@@ -244,8 +245,16 @@ export class WebAbility extends WebBaseAbility {
                       exception: ${JSON.stringify(exception)}`);
       }
 
+      const currentStatus = data.getWindowStatus();
+      // A saved desktop maximize state must not override a system-assigned
+      // split or tablet floating window during launch.
+      const isTabletSystemWindow = deviceInfo.deviceType === 'tablet' &&
+        settings.getValueSync(this.context, 'isSystemModePc', '', settings.domainName.USER_PROPERTY) !== 'true' &&
+        currentStatus === window.WindowStatusType.FLOATING;
       if (this.initStatus === WindowStatus.MAXIMIZE &&
-        data.getWindowStatus() !== window.WindowStatusType.MAXIMIZE) {
+        currentStatus !== window.WindowStatusType.MAXIMIZE &&
+        currentStatus !== window.WindowStatusType.SPLIT_SCREEN &&
+        !isTabletSystemWindow) {
         data.maximize(window.MaximizePresentation.EXIT_IMMERSIVE).then(() => {
           LogUtil.warn(TAG,
             `[ohoswindow] Window starts maximized.`);
@@ -499,7 +508,8 @@ export class WebAbility extends WebBaseAbility {
         this.nativeContext.OnAvoidAreaChangeCallback(statusBarHeight);
       }
 
-      if(!this.deviceInfoAdapter?.isNormalWindowMode()) {
+      if (!this.deviceInfoAdapter?.isNormalWindowMode() ||
+        windowClass.getWindowStatus() !== window.WindowStatusType.FULL_SCREEN) {
         return;
       }
 

@@ -222,11 +222,13 @@ export class AppWindowAdapter extends BaseAdapter {
 
     try {
       if (windowClass.getWindowStatus() !== window.WindowStatusType.MAXIMIZE &&
-        windowClass.getWindowStatus() !== window.WindowStatusType.FULL_SCREEN) {
+        windowClass.getWindowStatus() !== window.WindowStatusType.FULL_SCREEN &&
+        windowClass.getWindowStatus() !== window.WindowStatusType.SPLIT_SCREEN) {
         windowClass.moveWindowToAsync(bounds.left, bounds.top)
           .then(() => {
             if (windowClass?.getWindowStatus() !== window.WindowStatusType.MAXIMIZE &&
-              windowClass?.getWindowStatus() !== window.WindowStatusType.FULL_SCREEN) {
+              windowClass?.getWindowStatus() !== window.WindowStatusType.FULL_SCREEN &&
+              windowClass?.getWindowStatus() !== window.WindowStatusType.SPLIT_SCREEN) {
               windowClass?.resizeAsync(bounds.width, bounds.height)
                 .catch((err: BusinessError) => {
                   LogUtil.error(TAG,
