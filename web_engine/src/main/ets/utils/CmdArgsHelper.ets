@@ -60,7 +60,6 @@ export class CmdArgsHelper {
     "--ohos-enable-hdr",
     "--no-zygote",
     "--disable-gpu-watchdog",
-    "--ohos-refresh-rate=144",
     `--user-agent=${DESKTOP_USER_AGENT}`,
   ];
   private static readonly BLOCKED_ARGS_NAME: Set<string> = new Set([
