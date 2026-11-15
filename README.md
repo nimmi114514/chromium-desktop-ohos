@@ -33,12 +33,12 @@
 
 项目仍在适配和回归阶段。已有桌面界面、中文资源、AVC/HEVC硬件解码、HDR本地样本和WebGPU等方向的实现与验证记录，但不表示所有网站、扩展和系统功能均已验收。
 
-2026-10-28交付包含原生历史/书签弹窗、弹窗新增收藏的生命周期崩溃修复，以及OHOS V8启动时的内嵌builtins复制回退。release编译、包内容及签名校验通过，已使用原包名覆盖安装并保留Profile；用户反馈本次问题已正常。此反馈不代表所有功能全面回归完成。上述C++改动由配套内核仓库维护，本应用外壳运行源码沿用现有配置。
-
 完整验证范围见内核仓库的 [STATUS.md](https://github.com/nimmi114514/chromium-ohos/blob/master/STATUS.md) 和 [2026-10-28交付记录](https://github.com/nimmi114514/chromium-ohos/blob/master/docs/delivery-2026-10-28.md)。
 
 - 硬件解码格式取决于设备能力；HDR网站选流与面板绝对亮度、色准尚未完整验收。
-- 配套内核已启用DrDc独立合成线程；支持的驱动上，WebGPU默认RGBA画布通过NativeBuffer零拷贝呈现，其他格式与图片、视频导入保留兼容复制路径。普通网页图块的零拷贝上传尚未启用；Graphite、TreesInViz、WebNN未启用。
+- 配套内核支持 DrDc 独立合成线程、Vulkan/Dawn WebGPU；支持的驱动上，默认 RGBA 画布通过 NativeBuffer 共享呈现。
+- 8bit Canvas2D/WebGL/ImageBitmap 和 AVC/HEVC 视频导入通过 GPU 转换与共享，避免 CPU 像素回读和重新上传；仍可能有 GPU 拷贝。
+- BGRA/高位深画布呈现保留兼容拷贝路径，普通网页图块仍为 One-copy；Graphite、TreesInViz、WebNN 未启用。
 - DRM受保护内容端到端播放尚未完成，不作为当前已支持功能。
 - Google登录/同步配置沿用原132工程中的社区公开配置；实际可用性受凭证、网络和服务端策略影响。本仓库不提供登录或同步可用性的保证。
 
