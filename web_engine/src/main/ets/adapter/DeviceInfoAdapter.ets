@@ -32,13 +32,16 @@ export class DeviceInfoAdapter {
       });
     if (!res) {
       LogUtil.error(TAG, 'Failed to register window_pcmode_switch_status.');
+      // Keep deviceMode in sync even when the observer is unavailable, otherwise
+      // it stays at its kPcMode default and free multi-window handling is lost.
+      this.updateDeviceMode(this.getDeviceModeFromSystem(context));
       return;
     }
 
     this.updateDeviceMode(this.getDeviceModeFromSystem(context));
     let proxyList = this.abilityManager.getProxyList();
     for (let i = 0; i < proxyList.length; i++) {
-      this.abilityManager.getProxy(proxyList[i].getWindowId())?.updateAvoidAreaStatus(true);
+      this.abilityManager.getProxy(proxyList[i].getWindowId())?.syncSystemBarWithWindowStatus();
     }
 
     this.isRegisterDeviceModeChange = true;
@@ -50,7 +53,7 @@ export class DeviceInfoAdapter {
 
       let proxyList = this.abilityManager.getProxyList();
       for (let i = 0; i < proxyList.length; i++) {
-        this.abilityManager.getProxy(proxyList[i].getWindowId())?.updateAvoidAreaStatus(true);
+        this.abilityManager.getProxy(proxyList[i].getWindowId())?.syncSystemBarWithWindowStatus();
         if (this.deviceMode === DeviceMode.kNormalWindowMode) {
           this.abilityManager.getProxy(proxyList[i].getWindowId())?.setDeviceModeChangeEvent(ChangeEventType.CHANGE_TO_NORMAL_MODE);
         } else if (this.deviceMode === DeviceMode.kFreeWindowsMode) {

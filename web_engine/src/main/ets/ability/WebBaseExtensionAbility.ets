@@ -143,6 +143,8 @@ export class WebBaseExtensionAbility extends EmbeddedUIExtensionAbility implemen
 
   updateAvoidAreaStatus(isFullScreen: boolean) {}
 
+  syncSystemBarWithWindowStatus() {}
+
   isUIAbility(): boolean {
     return false;
   }
