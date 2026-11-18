@@ -16,6 +16,7 @@ export interface WebProxy {
   createSubWindow: (name: string) => Promise<window.Window>;
   getOriginWindowId: () => number;
   updateAvoidAreaStatus: (isFullScreen: boolean) => void;
+  syncSystemBarWithWindowStatus: () => void;
   isUIAbility: () => boolean;
   setDeviceModeChangeEvent: (deviceModeChangeEvent: ChangeEventType | undefined) => void;
 };
@@ -52,6 +53,8 @@ export class FakeWebProxy implements WebProxy {
   }
 
   updateAvoidAreaStatus(isFullScreen: boolean) {}
+
+  syncSystemBarWithWindowStatus() {}
 
   isUIAbility(): boolean {
     return true;

@@ -187,21 +187,22 @@ export class AppWindowAdapter extends BaseAdapter {
       return;
     }
 
-    if (this.deviceInfoAdapter.isNormalWindowMode()) {
-      this.abilityManager.getProxy(id)?.updateAvoidAreaStatus(true);
-    }
+    // Hide the status bar and the bottom navigation indicator for every tablet
+    // window form, including the free multi-window mode. PC desktop is excluded
+    // inside the ability implementation because it has no navigation indicator
+    // and the related Window APIs are no-ops there. The Window APIs only take
+    // effect once the window is full-screen/maximized, so the state is declared
+    // before maximize() and asserted again after the transition finishes.
+    this.abilityManager.getProxy(id)?.updateAvoidAreaStatus(true);
 
-    if (deviceInfo.sdkApiVersion >= 14) {
-      windowClass.maximize(window.MaximizePresentation.ENTER_IMMERSIVE_DISABLE_TITLE_AND_DOCK_HOVER)
-        .catch((err: BusinessError) => {
-          LogUtil.error(TAG, 'Failed to maximize the window. Cause:' + JSON.stringify(err));
-        });
-    } else {
-      windowClass.maximize(window.MaximizePresentation.ENTER_IMMERSIVE)
-        .catch((err: BusinessError) => {
-          LogUtil.error(TAG, 'Failed to maximize the window. Cause:' + JSON.stringify(err));
-        });
-    }
+    let presentation = deviceInfo.sdkApiVersion >= 14 ?
+      window.MaximizePresentation.ENTER_IMMERSIVE_DISABLE_TITLE_AND_DOCK_HOVER :
+      window.MaximizePresentation.ENTER_IMMERSIVE;
+    windowClass.maximize(presentation).then(() => {
+      this.abilityManager.getProxy(id)?.updateAvoidAreaStatus(true);
+    }).catch((err: BusinessError) => {
+      LogUtil.error(TAG, 'Failed to maximize the window. Cause:' + JSON.stringify(err));
+    });
   }
 
   @LogMethod
@@ -299,20 +300,20 @@ export class AppWindowAdapter extends BaseAdapter {
       return;
     }
 
+    // Leaving the page fullscreen can restore a maximized window. Keep the
+    // system bars hidden in that case instead of restoring them.
     if (windowClass.getWindowStatus() === window.WindowStatusType.MAXIMIZE) {
+      this.abilityManager.getProxy(id)?.syncSystemBarWithWindowStatus();
       return;
     }
 
     try {
       windowClass.maximize(window.MaximizePresentation.EXIT_IMMERSIVE).then(() => {
         LogUtil.info(TAG, 'Succeeded in maximizing the window.');
+        this.abilityManager.getProxy(id)?.syncSystemBarWithWindowStatus();
       }).catch((err: BusinessError) => {
         LogUtil.error(TAG, 'Failed to maximize the window. Cause:' + JSON.stringify(err));
       });
-
-      if (!this.deviceInfoAdapter.isPcMode()) {
-        this.abilityManager.getProxy(id)?.updateAvoidAreaStatus(false);
-      }
     } catch (exception) {
       LogUtil.error(TAG, 'maximize the window exception. Cause:' + JSON.stringify(exception));
     }
@@ -328,7 +329,8 @@ export class AppWindowAdapter extends BaseAdapter {
 
     try {
       windowClass.recover().then(() => {
-        LogUtil.info(TAG, 'Succeeded in setting the system bar to be invisible.');
+        LogUtil.info(TAG, 'Succeeded in recovering the window.');
+        this.abilityManager.getProxy(id)?.syncSystemBarWithWindowStatus();
       }).catch((err: BusinessError) => {
         LogUtil.error(TAG, 'Failed to recover the window. Cause: ' + JSON.stringify(err));
       });
@@ -438,6 +440,7 @@ export class AppWindowAdapter extends BaseAdapter {
     }
     windowClass.restore().then(() => {
       LogUtil.info(TAG, 'Succeeded in restoring the window.');
+      this.abilityManager.getProxy(id)?.syncSystemBarWithWindowStatus();
     }).catch((err: BusinessError) => {
       LogUtil.error(TAG, 'Failed to restore the window. Cause: ' + JSON.stringify(err));
     });

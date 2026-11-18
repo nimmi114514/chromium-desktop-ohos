@@ -38,7 +38,7 @@ import { CommandType, ConfigData, ContextType } from '../common/Constants';
 import CheckEmptyUtils from '../utils/CheckEmptyUtils';
 import { WebProxy } from '../interface/WebProxy';
 import { common } from '@kit.AbilityKit';
-import { BusinessError } from '@kit.BasicServicesKit';
+import { BusinessError, deviceInfo, settings } from '@kit.BasicServicesKit';
 import { WebAbilityStage } from '../application/WebAbilityStage';
 import { CmdArgsHelper } from '../utils/CmdArgsHelper';
 import { CommonDependencyProvider } from '../common/CommonDependencyProvider';
@@ -182,29 +182,89 @@ export class WebBaseAbility extends UIAbility implements WebProxy {
     return this.originWindowId;
   }
 
+  private systemBarUpdateRunning: boolean = false;
+  private pendingSystemBarImmersive: boolean | undefined = undefined;
+
+  // Whether this window form lets the app drive the status bar and the bottom
+  // navigation indicator itself. PC desktop has no navigation indicator and the
+  // related Window APIs are no-ops on PC/2in1, so it is left to the system.
+  public canManageSystemBar(): boolean {
+    if (deviceInfo.deviceType !== 'tablet') {
+      return false;
+    }
+    try {
+      return settings.getValueSync(this.context, 'isSystemModePc', '',
+        settings.domainName.USER_PROPERTY) !== 'true';
+    } catch (err) {
+      LogUtil.error(TAG, 'Failed to read isSystemModePc: ' + JSON.stringify(err));
+      return true;
+    }
+  }
+
+  // Applies a complete system bar state. When isFullScreen is true the layout
+  // extends under the system bars and both the status bar and the bottom
+  // navigation indicator are hidden; otherwise every system bar is restored.
   public updateAvoidAreaStatus(isFullScreen: boolean) {
+    this.pendingSystemBarImmersive = isFullScreen;
+    if (this.systemBarUpdateRunning) {
+      return;
+    }
+    this.systemBarUpdateRunning = true;
+    this.runSystemBarUpdates();
+  }
+
+  // The Window calls must not run concurrently: hiding wants the layout first,
+  // while restoring must enable the bars first and then refresh the layout,
+  // otherwise the bars stay hidden after leaving maximize/full-screen.
+  private async runSystemBarUpdates() {
+    try {
+      while (this.pendingSystemBarImmersive !== undefined) {
+        const immersive = this.pendingSystemBarImmersive;
+        this.pendingSystemBarImmersive = undefined;
+        await this.applySystemBarState(immersive);
+      }
+    } finally {
+      this.systemBarUpdateRunning = false;
+    }
+  }
+
+  private async applySystemBarState(immersive: boolean) {
     let windowClass = this.getWindow();
+    if (!windowClass || !this.canManageSystemBar()) {
+      return;
+    }
+    try {
+      if (immersive) {
+        await windowClass.setWindowLayoutFullScreen(true);
+        await windowClass.setSpecificSystemBarEnabled('navigationIndicator', false);
+        await windowClass.setSpecificSystemBarEnabled('status', false);
+      } else {
+        await windowClass.setSpecificSystemBarEnabled('navigationIndicator', true);
+        await windowClass.setSpecificSystemBarEnabled('status', true);
+        await windowClass.setWindowLayoutFullScreen(false);
+      }
+      LogUtil.info(TAG, `Applied the system bar state, immersive:${immersive}.`);
+    } catch (err) {
+      LogUtil.error(TAG, `Failed to apply the system bar state: ${JSON.stringify(err)}`);
+    }
+  }
 
-    // Set window to full screen.
-    windowClass?.setWindowLayoutFullScreen(true).then(() => {
-      LogUtil.info(TAG, 'Succeeded in setting the window layout to full-screen mode.');
-    }).catch((err: BusinessError) => {
-      LogUtil.error(TAG, 'Failed to set the window layout to full-screen mode. Cause:' + JSON.stringify(err));
-    });
-
-    // Hide the navigation bar here.
-    windowClass?.setSpecificSystemBarEnabled('navigationIndicator', false).then(() => {
-      LogUtil.info(TAG, 'Succeeded in setting the navigation indicator to be invisible.');
-    }).catch((err: BusinessError) => {
-      LogUtil.error(TAG, `Failed to set the navigation indicator to be invisible. Code is ${err.code}, message is ${err.message}`);
-    });
-
-    // The top status bar is set up to be hidden when in full-screen mode and displayed when maximized.
-    windowClass?.setSpecificSystemBarEnabled('status', !isFullScreen).then(() => {
-      LogUtil.info(TAG, 'Succeeded in setting the status bar to be invisible.');
-    }).catch((err: BusinessError) => {
-      LogUtil.error(TAG, `Failed to set the status bar to be invisible. Code is ${err.code}, message is ${err.message}`);
-    });
+  // Keeps the system bars hidden while the window is full-screen or maximized
+  // and restores them once the user leaves full-screen/maximize, so exiting a
+  // page fullscreen returns to the previous window state.
+  public syncSystemBarWithWindowStatus() {
+    let windowClass = this.getWindow();
+    if (!windowClass || !this.canManageSystemBar()) {
+      return;
+    }
+    try {
+      let status = windowClass.getWindowStatus();
+      let immersive = status === window.WindowStatusType.FULL_SCREEN ||
+        status === window.WindowStatusType.MAXIMIZE;
+      this.updateAvoidAreaStatus(immersive);
+    } catch (err) {
+      LogUtil.error(TAG, 'Failed to sync the system bar: ' + JSON.stringify(err));
+    }
   }
 
   isUIAbility(): boolean {

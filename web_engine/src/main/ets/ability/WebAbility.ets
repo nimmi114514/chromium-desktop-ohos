@@ -159,10 +159,12 @@ export class WebAbility extends WebBaseAbility {
         if (deviceInfo.sdkApiVersion >= 20) {
           data.on('windowStatusDidChange', (status) => {
             this.notifyWindowStatusChange(status)
+            this.syncSystemBarWithWindowStatus();
           })
         } else {
           data.on('windowStatusChange', (status) => {
             this.notifyWindowStatusChange(status)
+            this.syncSystemBarWithWindowStatus();
           })
         }
       } catch (exception) {
@@ -483,9 +485,9 @@ export class WebAbility extends WebBaseAbility {
   }
 
   private onPadWindowStageCreate(windowClass: window.Window, storage: LocalStorage) {
-    // Always run in full-screen layout with the status bar hidden so web
-    // content uses the whole screen (Chrome-like behavior on 2-in-1/tablet).
-    this.updateAvoidAreaStatus(true);
+    // Follow the actual window status: a full-screen/maximized window keeps the
+    // system bars hidden, a floating free multi-window keeps them visible.
+    this.syncSystemBarWithWindowStatus();
 
     let avoidArea = windowClass.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
     let statusBarHeight = avoidArea.topRect.height;
