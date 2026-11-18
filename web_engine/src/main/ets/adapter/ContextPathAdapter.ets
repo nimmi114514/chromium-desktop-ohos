@@ -36,7 +36,6 @@ import LogMethod from '../common/LogDecorator';
 import { ContextAdapter } from './ContextAdapter';
 import { fileUri, picker } from '@kit.CoreFileKit';
 import { BusinessError } from '@kit.BasicServicesKit';
-import { common } from '@kit.AbilityKit';
 
 const TAG: string = 'ContextPath';
 
@@ -104,17 +103,22 @@ export class ContextPathAdapter extends BaseAdapter {
 
   @LogMethod
   getAppDownloadDir(callback: (downloadDirPath: string) => void) {
-    let context = getContext(this) as common.Context;
-    const documentViewPicker = new picker.DocumentViewPicker(context);
-    const documentSaveOptions = new picker.DocumentSaveOptions();
-    documentSaveOptions.pickerMode = picker.DocumentPickerMode.DOWNLOAD;
- 
-    documentViewPicker.save(documentSaveOptions).then((documentSaveResult: Array<string>) => {
-      let downloadDirPath = new fileUri.FileUri(documentSaveResult[0]).path;
-      callback(downloadDirPath);
-    }).catch((err: BusinessError) => {
+    // Adapters are not ArkUI components; use the injected ability/application
+    // context, including when Chromium requests its default before UI load.
+    const context = this.ctxAdapter.getActiveContext() ?? this.ctxAdapter.getContext();
+    try {
+      const documentViewPicker = new picker.DocumentViewPicker(context);
+      const documentSaveOptions = new picker.DocumentSaveOptions();
+      documentSaveOptions.pickerMode = picker.DocumentPickerMode.DOWNLOAD;
+      documentViewPicker.save(documentSaveOptions).then((result: Array<string>) => {
+        callback(result.length > 0 ? new fileUri.FileUri(result[0]).path : '');
+      }).catch((err: BusinessError) => {
+        LogUtil.error(TAG, `createAppDownloadDir failed: ${JSON.stringify(err)}`);
+        callback('');
+      });
+    } catch (err) {
       LogUtil.error(TAG, `createAppDownloadDir failed: ${JSON.stringify(err)}`);
       callback('');
-    })
+    }
   }
 }
