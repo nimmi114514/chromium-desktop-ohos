@@ -51,15 +51,15 @@ export interface ParsedArg {
 }
 
 export class CmdArgsHelper {
+  // NOTE: native ChromeMainLoader::GetEntryArgs() already supplies --use-gl=egl,
+  // --enable-features, --ozone-platform=ohos, --enable-logging, --no-zygote and
+  // --disable-gpu-watchdog. Those args must NOT be repeated here: base::CommandLine
+  // stores switches in a std::map, so a later duplicate silently overwrites the
+  // native value (that is how --enable-features=MiddleClickAutoscroll got lost).
+  // Keep only the args that the native side does not provide.
   private static readonly DEFAULT_ARGS: string[] = [
     // The original132 BasicLoader supplies argv[0] in GetEntryArgs().
-    "--use-gl=egl",
-    "--enable-features=UseOzonePlatform",
-    "--ozone-platform=ohos",
-    "--enable-logging",
     "--ohos-enable-hdr",
-    "--no-zygote",
-    "--disable-gpu-watchdog",
     `--user-agent=${DESKTOP_USER_AGENT}`,
   ];
   private static readonly BLOCKED_ARGS_NAME: Set<string> = new Set([
