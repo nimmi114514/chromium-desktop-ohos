@@ -35,13 +35,14 @@ import LogUtil from '../utils/LogUtil';
 import LogMethod from '../common/LogDecorator';
 import { ContextAdapter } from './ContextAdapter';
 import { fileUri, picker } from '@kit.CoreFileKit';
-import { BusinessError } from '@kit.BasicServicesKit';
 
 const TAG: string = 'ContextPath';
 
 @injectable()
 export class ContextPathAdapter extends BaseAdapter {
   private ctxAdapter: ContextAdapter;
+  private appDownloadDir: string = '';
+  private appDownloadDirRequest: Promise<string> | undefined;
 
   constructor(@inject(ContextAdapter) ctxAdapter: ContextAdapter) {
     super();
@@ -103,22 +104,35 @@ export class ContextPathAdapter extends BaseAdapter {
 
   @LogMethod
   getAppDownloadDir(callback: (downloadDirPath: string) => void) {
-    // Adapters are not ArkUI components; use the injected ability/application
-    // context, including when Chromium requests its default before UI load.
-    const context = this.ctxAdapter.getActiveContext() ?? this.ctxAdapter.getContext();
+    if (this.appDownloadDir) {
+      callback(this.appDownloadDir);
+      return;
+    }
+    if (!this.appDownloadDirRequest) {
+      // Keep a late successful result even if the native caller has timed out.
+      // Concurrent callers share one system request; failures remain retryable.
+      this.appDownloadDirRequest = this.requestAppDownloadDir().then((path: string) => {
+        this.appDownloadDirRequest = undefined;
+        this.appDownloadDir = path;
+        return path;
+      });
+    }
+    this.appDownloadDirRequest.then((path: string) => callback(path));
+  }
+
+  private async requestAppDownloadDir(): Promise<string> {
     try {
+      // Adapters are not ArkUI components; use the injected ability/application
+      // context, including when Chromium requests its default before UI load.
+      const context = this.ctxAdapter.getActiveContext() ?? this.ctxAdapter.getContext();
       const documentViewPicker = new picker.DocumentViewPicker(context);
       const documentSaveOptions = new picker.DocumentSaveOptions();
       documentSaveOptions.pickerMode = picker.DocumentPickerMode.DOWNLOAD;
-      documentViewPicker.save(documentSaveOptions).then((result: Array<string>) => {
-        callback(result.length > 0 ? new fileUri.FileUri(result[0]).path : '');
-      }).catch((err: BusinessError) => {
-        LogUtil.error(TAG, `createAppDownloadDir failed: ${JSON.stringify(err)}`);
-        callback('');
-      });
+      const result: Array<string> = await documentViewPicker.save(documentSaveOptions);
+      return result.length > 0 ? new fileUri.FileUri(result[0]).path : '';
     } catch (err) {
       LogUtil.error(TAG, `createAppDownloadDir failed: ${JSON.stringify(err)}`);
-      callback('');
+      return '';
     }
   }
 }
