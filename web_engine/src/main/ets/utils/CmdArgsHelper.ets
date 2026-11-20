@@ -105,8 +105,8 @@ export class CmdArgsHelper {
     // Copy the defaults so each window gets an independent argument list.
     let vec_args = [...CmdArgsHelper.DEFAULT_ARGS];
 
-    // pad添加 --in-process-gpu
-    if (deviceInfo.deviceType === 'tablet') {
+    // Native IPC child processes support tablets from API 14.
+    if (deviceInfo.deviceType === 'tablet' && deviceInfo.sdkApiVersion < 14) {
       vec_args.push("--in-process-gpu");
     }
 
