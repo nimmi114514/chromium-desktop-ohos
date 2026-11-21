@@ -61,6 +61,11 @@ export class AppWindowAdapter extends BaseAdapter {
   private deviceInfoAdapter: DeviceInfoAdapter;
   private themeAdapter: NativeThemeAdapter;
   private nodeHandleManager: NodeHandleManager;
+  // WindowKit bounds operations are asynchronous. Serialize them per window
+  // and keep only the newest pending rect so an older move/resize completion
+  // cannot snap a tab-dragged window back to a stale position.
+  private pendingWindowBounds: Map<number, WindowBound> = new Map();
+  private updatingWindowBounds: Set<number> = new Set();
 
   constructor(
     @inject(AbilityManager) abilityManager: AbilityManager,
@@ -205,45 +210,68 @@ export class AppWindowAdapter extends BaseAdapter {
     });
   }
 
-  @LogMethod
   setBounds(id: number, bounds: WindowBound) {
-    let windowClass = this.getWindow(id);
-    if (!windowClass) {
-      LogUtil.error(TAG, 'Failed to obtain the main window.');
+    this.pendingWindowBounds.set(id, {
+      left: bounds.left,
+      top: bounds.top,
+      width: bounds.width,
+      height: bounds.height
+    });
+    if (!this.updatingWindowBounds.has(id)) {
+      this.updatingWindowBounds.add(id);
+      this.applyPendingWindowBounds(id);
+    }
+  }
+
+  private async applyPendingWindowBounds(id: number): Promise<void> {
+    const bounds = this.pendingWindowBounds.get(id);
+    if (!bounds) {
+      this.updatingWindowBounds.delete(id);
       return;
     }
-
-    const windowProp = windowClass.getWindowProperties();
-    let xComBorder: number = windowProp?.drawableRect.left || 0;
-    let xComTop: number = windowProp?.drawableRect.top || 0;
-    bounds.left -= xComBorder;
-    bounds.top -= xComTop;
-    bounds.width = bounds.width + xComBorder + xComBorder;
-    bounds.height = bounds.height + xComBorder + xComTop;
+    this.pendingWindowBounds.delete(id);
 
     try {
-      if (windowClass.getWindowStatus() !== window.WindowStatusType.MAXIMIZE &&
-        windowClass.getWindowStatus() !== window.WindowStatusType.FULL_SCREEN &&
-        windowClass.getWindowStatus() !== window.WindowStatusType.SPLIT_SCREEN) {
-        windowClass.moveWindowToAsync(bounds.left, bounds.top)
-          .then(() => {
-            if (windowClass?.getWindowStatus() !== window.WindowStatusType.MAXIMIZE &&
-              windowClass?.getWindowStatus() !== window.WindowStatusType.FULL_SCREEN &&
-              windowClass?.getWindowStatus() !== window.WindowStatusType.SPLIT_SCREEN) {
-              windowClass?.resizeAsync(bounds.width, bounds.height)
-                .catch((err: BusinessError) => {
-                  LogUtil.error(TAG,
-                    'Failed to change the window size. Cause:' + JSON.stringify(err) + ' window status:' +
-                    windowClass?.getWindowStatus());
-                });
+      let windowClass = this.getWindow(id);
+      if (!windowClass) {
+        LogUtil.error(TAG, 'Failed to obtain the main window.');
+      } else {
+        const windowProp = windowClass.getWindowProperties();
+        let xComBorder: number = windowProp?.drawableRect.left || 0;
+        let xComTop: number = windowProp?.drawableRect.top || 0;
+        const currentWindowRect = windowProp.windowRect;
+        bounds.left -= xComBorder;
+        bounds.top -= xComTop;
+        bounds.width = bounds.width + xComBorder + xComBorder;
+        bounds.height = bounds.height + xComBorder + xComTop;
+
+        const windowStatus = windowClass.getWindowStatus();
+        if (windowStatus !== window.WindowStatusType.MAXIMIZE &&
+          windowStatus !== window.WindowStatusType.FULL_SCREEN &&
+          windowStatus !== window.WindowStatusType.SPLIT_SCREEN) {
+          await windowClass.moveWindowToAsync(bounds.left, bounds.top);
+          const currentStatus = windowClass.getWindowStatus();
+          if (currentStatus !== window.WindowStatusType.MAXIMIZE &&
+            currentStatus !== window.WindowStatusType.FULL_SCREEN &&
+            currentStatus !== window.WindowStatusType.SPLIT_SCREEN) {
+            // Tab detachment moves a fixed-size window. Repeating an async
+            // resize for every pointer update causes redundant WindowKit work
+            // and can trigger avoidable surface/layout churn on each frame.
+            if (currentWindowRect.width !== bounds.width ||
+              currentWindowRect.height !== bounds.height) {
+              await windowClass.resizeAsync(bounds.width, bounds.height);
             }
-          }).catch((err: BusinessError) => {
-          LogUtil.error(TAG, 'Failed to move the window. Cause:' + JSON.stringify(err) + ' window status:' +
-          windowClass?.getWindowStatus());
-        });
+          }
+        }
       }
     } catch (exception) {
-      LogUtil.error(TAG, 'move the window exception. Cause:' + JSON.stringify(exception));
+      LogUtil.error(TAG, 'Failed to update window bounds. Cause:' + JSON.stringify(exception));
+    }
+
+    if (this.pendingWindowBounds.has(id)) {
+      await this.applyPendingWindowBounds(id);
+    } else {
+      this.updatingWindowBounds.delete(id);
     }
   }
 
